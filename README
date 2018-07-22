@@ -1,0 +1,14 @@
+Totally Awesome TFTP Server
+===========================
+
+To compile the server:
+
+    $ bash compile_server.sh
+
+To run the server:
+
+    $ java -jar TATFTP.jar [port_number]
+
+To upload a variety of files (empty, small, medium, large) to the server:
+
+    $ bash test_server.txt [port_number]

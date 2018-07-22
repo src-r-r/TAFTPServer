@@ -19,50 +19,72 @@ import com.sun.tools.javac.Main;
 
 public class TATFTPMain {
 	
-	private final static int BUFFER_SIZE = 1024;
+	private final static int BUFFER_SIZE = 1024, DEFAULT_PORT_NUMBER = 69;
 
 	public TATFTPMain() {
 		// TODO Auto-generated constructor stub
 	}
 
 	public static void main(String[] args) {
-		DatagramChannel primaryChannel = null;
+		DatagramChannel serverChannel = null;
 		TATFTPPacket request = null, response = null;
 		ArrayList<TAThread> threads = new ArrayList<TAThread>();
 		CloseWatcher watcher = new CloseWatcher(threads);
 		
+		int portNumber = DEFAULT_PORT_NUMBER;
+		boolean doHelp = false;
+		for (String a : args) {
+			if (a.contains("-h") || a.contains("--h")) {
+				doHelp = true;
+			} else if (a.matches("[0-9]+")) {
+				portNumber = Integer.parseInt(a);
+			}
+		}
+		
+		if (doHelp) {
+			System.out.println("Usage: ");
+			System.out.println("java -jar TATFTP.jar [-h] [port]");
+			System.exit(0);
+		}
+		
 		TATFTPPacketFactory factory = TATFTPPacketFactory.getInstance();
 		
 		try {
-			primaryChannel = DatagramChannel.open();
-			primaryChannel.setOption(StandardSocketOptions.SO_REUSEADDR, true);
+			serverChannel = DatagramChannel.open();
+			serverChannel.setOption(StandardSocketOptions.SO_REUSEADDR, true);
 		} catch (IOException e1) {
 			// TODO Auto-generated catch block
 			e1.printStackTrace();
 		}
-		DatagramSocket primarySocket = primaryChannel.socket();
-		int boundPort = 69;
-		for (int i = 69; (i < 999999) && (!primarySocket.isBound()); ++i) {
-			try {
-//				System.out.println("binding to port " + i);
-				primarySocket.bind(new InetSocketAddress(i));
-				boundPort = i;
-			} catch (SocketException e) {
-				// TODO Auto-generated catch block
-//				e.printStackTrace();
-			}
+		DatagramSocket serverSocket = serverChannel.socket();
+		
+		try {
+			serverSocket.bind(new InetSocketAddress(portNumber));
+		} catch (SocketException e2) {
+			// TODO Auto-generated catch block
+			e2.printStackTrace();
+			System.err.println("Could not bind to port " + portNumber + ".");
+			System.err.println("Try passing in a port number; see `-h` for details.");
+			System.exit(1);
 		}
-		System.out.println("Bound to port " + boundPort);
-		if (!primarySocket.isBound()) {
-			throw new RuntimeException("Could not bind to any port!");
+		
+		if (!serverSocket.isBound()) {
+			throw new RuntimeException("Could not bind to the port!");
 		}
+		
+		System.out.println("Totally Awesome TFTP Server");
+		System.out.println("Running on " + serverSocket.getLocalAddress().getHostAddress()
+							+ ":"
+							+ serverSocket.getLocalPort());
+		
 		ByteBuffer buf = ByteBuffer.allocate(BUFFER_SIZE);
-		while (primarySocket.isBound()) {
+		
+		while (true) {
 			System.err.println("waiting for data");
 			buf.clear();
 			SocketAddress client = null;
 			try {
-				client = primaryChannel.receive(buf);
+				client = serverChannel.receive(buf);
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -72,7 +94,7 @@ public class TATFTPMain {
 				System.err.println("It's empty.");
 				response = new TATFTPERROR(TATFTPERROR.ErrorCode.NOT_DEFINED, "Empty data");
 				try {
-					primaryChannel.send(ByteBuffer.wrap(response.toBytes()), primaryChannel.getRemoteAddress());
+					serverChannel.send(ByteBuffer.wrap(response.toBytes()), serverChannel.getRemoteAddress());
 				} catch (IOException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
@@ -86,7 +108,7 @@ public class TATFTPMain {
 				request = factory.read(buf.array());
 			} catch (TAException e1) {
 				try {
-					e1.asTATFTPERROR().sendTo(primarySocket);
+					e1.asTATFTPERROR().sendTo(serverSocket);
 				} catch (NullPointerException e) {
 					e.printStackTrace();
 					throw new RuntimeException();
@@ -105,11 +127,11 @@ public class TATFTPMain {
 			}
 			
 			if (request instanceof TATFTPWRQ) {
-				DatagramChannel channel;
+				DatagramChannel channel = null;
 				try {
 					TAThread thread = new TAThread(client, (TATFTPWRQ) request, watcher);
 					threads.add(thread);
-					if (thread.connect(boundPort+1) > 0) {
+					if (thread.connect(portNumber+1) > 0) {
 						thread.run();
 					}
 				} catch (IOException e) {

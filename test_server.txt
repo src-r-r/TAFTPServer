@@ -1,0 +1,12 @@
+#!/bin/bash
+
+if [ ! -n "$1" ]; then
+    echo "Missing port!"
+    exit
+fi;
+
+runtftp() {
+    tftp 127.0.0.1 $1 -c put $2.txt $2.upload.txt
+}
+
+runtftp $1 empty | runtftp $1 small| runtftp $1 medium| runtftp $1 large

@@ -43,26 +43,19 @@ public class TAThread extends Thread {
 	public int connect(int initialPort) {
 		mSocket = mChannel.socket();
 
-		// Set *some* exit condition in case something goes really wrong
-		if (initialPort >= 999999999) {
-			return -1;
+		for (int i = initialPort; i < 9999999; ++i) {
+			try {
+				System.err.println("(thread) Binding to port " + initialPort);
+				mSocket.bind(new InetSocketAddress(initialPort));
+			} catch (SocketException e) {
+				continue;
+			}
+			if (mSocket.isBound()) {
+				return mSocket.getLocalPort();
+			}
 		}
 
-		try {
-			System.err.println("(thread) Binding to port " + initialPort);
-			mSocket.bind(new InetSocketAddress(initialPort));
-		} catch (SocketException e) {
-			return connect(initialPort + 1);
-		}
-
-		if (!mSocket.isBound()) {
-			System.err.println("Failed to connect thread's socket.");
-			close();
-		} else {
-			System.err.println("Thread connected");
-		}
-
-		return initialPort;
+		return -1;
 	}
 
 	public void close() {
